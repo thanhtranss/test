@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            display: flex;
+            display flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -35,7 +35,6 @@
             color: white;
             border: none;
             cursor: pointer;
-            display: block;
         }
         button:hover {
             background-color: #218838;
@@ -61,7 +60,8 @@
         <button onclick="swapTokens()">Swap Tokens</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.0.3/web3.min.js"></script>
+    <!-- Sử dụng phiên bản Web3.js mới nhất -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@4.7.0/dist/web3.min.js"></script>
     <script>
         let web3;
         let accounts;
@@ -70,10 +70,9 @@
         // PancakeSwap Router V2 address (BSC Mainnet)
         const pancakeSwapRouterAddress = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 
-        // PancakeSwap Router ABI
+        // PancakeSwap Router ABI (chỉ giữ các hàm cần thiết)
         const pancakeSwapRouterABI = [
             {
-                "constant": false,
                 "inputs": [
                     { "name": "amountIn", "type": "uint256" },
                     { "name": "amountOutMin", "type": "uint256" },
@@ -86,7 +85,6 @@
                 "type": "function"
             },
             {
-                "constant": true,
                 "inputs": [
                     { "name": "amountIn", "type": "uint256" },
                     { "name": "path", "type": "address[]" }
@@ -97,17 +95,15 @@
             }
         ];
 
-        // ERC-20 Token ABI (for approve, decimals, and allowance)
+        // ERC-20 Token ABI
         const tokenABI = [
             {
-                "constant": true,
                 "inputs": [],
                 "name": "decimals",
                 "outputs": [{ "name": "", "type": "uint8" }],
                 "type": "function"
             },
             {
-                "constant": false,
                 "inputs": [
                     { "name": "spender", "type": "address" },
                     { "name": "value", "type": "uint256" }
@@ -117,7 +113,6 @@
                 "type": "function"
             },
             {
-                "constant": true,
                 "inputs": [
                     { "name": "owner", "type": "address" },
                     { "name": "spender", "type": "address" }
@@ -127,7 +122,6 @@
                 "type": "function"
             },
             {
-                "constant": true,
                 "inputs": [{ "name": "account", "type": "address" }],
                 "name": "balanceOf",
                 "outputs": [{ "name": "", "type": "uint256" }],
@@ -135,37 +129,69 @@
             }
         ];
 
-        // Check if connected to BSC Mainnet
+        // Kiểm tra mạng BSC Mainnet
         async function checkNetwork() {
-            if (!web3) return false;
-            const chainId = await web3.eth.getChainId();
-            if (chainId !== 56) {
-                alert("Please switch to Binance Smart Chain Mainnet!");
+            if (!web3) {
+                alert("Web3 not initialized. Please try again.");
                 return false;
             }
-            return true;
+            try {
+                const chainId = await web3.eth.getChainId();
+                if (Number(chainId) !== 56) {
+                    alert("Please switch to Binance Smart Chain Mainnet (Chain ID: 56)!");
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error("Error checking network:", error);
+                alert("Failed to check network. Please check console for details.");
+                return false;
+            }
         }
 
-        // Connect MetaMask
+        // Kết nối MetaMask
         document.getElementById("connectWallet").onclick = async () => {
-            if (window.ethereum) {
-                try {
-                    web3 = new Web3(window.ethereum);
-                    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    if (await checkNetwork()) {
-                        document.getElementById("walletStatus").innerText = `Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
-                        pancakeSwapRouter = new web3.eth.Contract(pancakeSwapRouterABI, pancakeSwapRouterAddress);
-                    }
-                } catch (error) {
-                    console.error("Error connecting to MetaMask:", error);
-                    alert("Failed to connect MetaMask. Please try again.");
-                }
-            } else {
+            if (!window.ethereum) {
                 alert("Please install MetaMask!");
+                return;
+            }
+
+            try {
+                // Khởi tạo Web3
+                web3 = new Web3(window.ethereum);
+
+                // Yêu cầu quyền truy cập ví
+                accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                // Kiểm tra mạng
+                if (await checkNetwork()) {
+                    document.getElementById("walletStatus").innerText = `Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+                    // Khởi tạo contract PancakeSwap
+                    pancakeSwapRouter = new web3.eth.Contract(pancakeSwapRouterABI, pancakeSwapRouterAddress);
+                }
+            } catch (error) {
+                console.error("Error connecting to MetaMask:", error);
+                alert(`Failed to connect MetaMask: ${error.message || 'Unknown error'}`);
             }
         };
 
-        // Approve Token
+        // Xử lý sự kiện thay đổi mạng
+        window.ethereum?.on('chainChanged', () => {
+            window.location.reload(); // Tải lại trang khi mạng thay đổi
+        });
+
+        // Xử lý sự kiện thay đổi tài khoản
+        window.ethereum?.on('accountsChanged', (newAccounts) => {
+            if (newAccounts.length === 0) {
+                document.getElementById("walletStatus").innerText = "Wallet not connected";
+                accounts = null;
+            } else {
+                accounts = newAccounts;
+                document.getElementById("walletStatus").innerText = `Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+            }
+        });
+
+        // Phê duyệt token
         async function approveToken(tokenInputId, statusElementId) {
             if (!web3 || !accounts) {
                 alert("Please connect MetaMask first!");
@@ -187,11 +213,11 @@
                 alert(`Token ${tokenInputId === 'tokenA' ? 'A' : 'B'} approved successfully!`);
             } catch (error) {
                 console.error(`Error approving ${tokenInputId}:`, error);
-                alert(`Failed to approve ${tokenInputId === 'tokenA' ? 'Token A' : 'Token B'}. Please check console for details.`);
+                alert(`Failed to approve ${tokenInputId === 'tokenA' ? 'Token A' : 'Token B'}: ${error.message || 'Unknown error'}`);
             }
         }
 
-        // Swap Tokens with Auto-Approval
+        // Swap tokens
         async function swapTokens() {
             if (!web3 || !accounts) {
                 alert("Please connect MetaMask first!");
@@ -214,110 +240,69 @@
             }
 
             try {
-                // Initialize token contracts
                 const tokenAContract = new web3.eth.Contract(tokenABI, tokenA);
                 const tokenBContract = new web3.eth.Contract(tokenABI, tokenB);
 
-                // Get decimals
                 const decimalsA = await tokenAContract.methods.decimals().call();
-                const decimalsB = await tokenBContract.methods.decimals().call();
-
-                // Convert amount to token units
                 const amountIn = web3.utils.toBN(amount * (10 ** decimalsA)).toString();
                 const maxAmount = web3.utils.toBN(2).pow(web3.utils.toBN(256)).sub(web3.utils.toBN(1)).toString();
 
-                // Check and approve Token A
+                // Phê duyệt Token A nếu cần
                 let allowanceA = await tokenAContract.methods.allowance(accounts[0], pancakeSwapRouterAddress).call();
                 if (web3.utils.toBN(allowanceA).lt(web3.utils.toBN(amountIn))) {
-                    try {
-                        await tokenAContract.methods.approve(pancakeSwapRouterAddress, maxAmount).send({ from: accounts[0] });
-                        document.getElementById("approvalStatusA").innerText = "Token A: Approved";
-                        alert("Token A approved successfully!");
-                    } catch (error) {
-                        console.error("Error approving Token A:", error);
-                        alert("Failed to approve Token A. Please try again.");
-                        return;
-                    }
+                    await tokenAContract.methods.approve(pancakeSwapRouterAddress, maxAmount).send({ from: accounts[0] });
+                    document.getElementById("approvalStatusA").innerText = "Token A: Approved";
+                    alert("Token A approved successfully!");
                 }
 
-                // Perform first swap (A -> B)
+                // Thực hiện swap A -> B
                 const path = [tokenA, tokenB];
                 const to = accounts[0];
-                const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
-
+                const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 phút
                 const amountsOut = await pancakeSwapRouter.methods.getAmountsOut(amountIn, path).call();
                 const amountOutMin = web3.utils.toBN(amountsOut[1]).mul(web3.utils.toBN(99)).div(web3.utils.toBN(100)).toString();
 
                 const balanceBefore = await tokenBContract.methods.balanceOf(accounts[0]).call();
 
-                try {
-                    await pancakeSwapRouter.methods.swapExactTokensForTokens(
-                        amountIn,
-                        amountOutMin,
-                        path,
-                        to,
-                        deadline
-                    ).send({ from: accounts[0] });
-                    alert("First swap (A -> B) successful!");
-                } catch (error) {
-                    console.error("Error in first swap:", error);
-                    alert("First swap failed. Please check console for details.");
-                    return;
-                }
+                await pancakeSwapRouter.methods.swapExactTokensForTokens(
+                    amountIn,
+                    amountOutMin,
+                    path,
+                    to,
+                    deadline
+                ).send({ from: accounts[0] });
+                alert("Swap (A -> B) successful!");
 
-                // Calculate amount of Token B received
+                // Tính lượng Token B nhận được
                 const balanceAfter = await tokenBContract.methods.balanceOf(accounts[0]).call();
                 const amountBReceived = web3.utils.toBN(balanceAfter).sub(web3.utils.toBN(balanceBefore)).toString();
 
-                // Check and approve Token B
+                // Phê duyệt Token B nếu cần
                 let allowanceB = await tokenBContract.methods.allowance(accounts[0], pancakeSwapRouterAddress).call();
                 if (web3.utils.toBN(allowanceB).lt(web3.utils.toBN(amountBReceived))) {
-                    try {
-                        await tokenBContract.methods.approve(pancakeSwapRouterAddress, maxAmount).send({ from: accounts[0] });
-                        document.getElementById("approvalStatusB").innerText = "Token B: Approved";
-                        alert("Token B approved successfully!");
-                    } catch (error) {
-                        console.error("Error approving Token B:", error);
-                        alert("Failed to approve Token B. Please try again.");
-                        return;
-                    }
+                    await tokenBContract.methods.approve(pancakeSwapRouterAddress, maxAmount).send({ from: accounts[0] });
+                    document.getElementById("approvalStatusB").innerText = "Token B: Approved";
+                    alert("Token B approved successfully!");
                 }
 
-                // Perform reverse swap (B -> A)
+                // Swap ngược B -> A
                 const pathReverse = [tokenB, tokenA];
                 const amountsOutReverse = await pancakeSwapRouter.methods.getAmountsOut(amountBReceived, pathReverse).call();
                 const amountOutMinReverse = web3.utils.toBN(amountsOutReverse[1]).mul(web3.utils.toBN(99)).div(web3.utils.toBN(100)).toString();
 
-                try {
-                    await pancakeSwapRouter.methods.swapExactTokensForTokens(
-                        amountBReceived,
-                        amountOutMinReverse,
-                        pathReverse,
-                        to,
-                        deadline
-                    ).send({ from: accounts[0] });
-                    alert("Reverse swap (B -> A) successful!");
-                } catch (error) {
-                    console.error("Error in reverse swap:", error);
-                    alert("Reverse swap failed. Please check console for details.");
-                }
+                await pancakeSwapRouter.methods.swapExactTokensForTokens(
+                    amountBReceived,
+                    amountOutMinReverse,
+                    pathReverse,
+                    to,
+                    deadline
+                ).send({ from: accounts[0] });
+                alert("Reverse swap (B -> A) successful!");
             } catch (error) {
                 console.error("Error in swap process:", error);
-                alert("An error occurred during the swap process. Please check console for details.");
+                alert(`Swap failed: ${error.message || 'Unknown error'}`);
             }
         }
-
-        // Ensure approve buttons are visible on page load
-        window.onload = function() {
-            const approveButtonA = document.getElementById("approveTokenA");
-            const approveButtonB = document.getElementById("approveTokenB");
-            if (approveButtonA && approveButtonB) {
-                approveButtonA.style.display = "block";
-                approveButtonB.style.display = "block";
-            } else {
-                console.error("Approve buttons not found in DOM");
-            }
-        };
     </script>
 </body>
 </html>
